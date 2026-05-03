@@ -6,10 +6,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT}:5432"
     networks:
-      - dokploy-network
+      - keycloak_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -18,46 +16,43 @@ services:
       retries: 5
 
   keycloak:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: quay.io/keycloak/keycloak:26.0
     container_name: keycloak-server
-    command: >
-      /bin/bash -c "
-        until pg_isready -h postgres -p 5432 -U ${POSTGRES_USER};
-        do sleep 3;
-        done;
-        exec /opt/keycloak/bin/kc.sh start
-      "
+    command: ["start"]                        # ← start not start-dev for UAT
     environment:
+      # Database
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       KC_DB_USERNAME: ${POSTGRES_USER}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Admin credentials
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+      # Hostname — set to your Dokploy domain
       KC_HOSTNAME: ${KC_HOSTNAME}
-      KC_HOSTNAME_STRICT: "false"
-      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: false
+      KC_HTTP_ENABLED: true                   # ← Dokploy reverse proxy handles HTTPS
+
+      # Proxy settings — required behind Dokploy/Traefik
       KC_PROXY_HEADERS: xforwarded
-      KC_HOSTNAME_STRICT_HTTPS: "false"
-      KC_CACHE: local
+      KC_HOSTNAME_STRICT_HTTPS: false
+
+      # Performance
+      KC_CACHE: local                         # ← single node, no infinispan needed
       KC_LOG_LEVEL: ${KC_LOG_LEVEL}
     ports:
       - "${KC_PORT}:8080"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.keycloak-uat.rule=Host(`${KC_HOSTNAME}`)"
-      - "traefik.http.routers.keycloak-uat.entrypoints=websecure"
-      - "traefik.http.routers.keycloak-uat.tls.certResolver=letsencrypt"
-      - "traefik.http.services.keycloak-uat.loadbalancer.server.port=8080"
+    volumes:
+      - ./keywind/keywind.jar:/opt/keycloak/providers/keywind.jar
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy            # ← wait for postgres to be ready
     networks:
-      - dokploy-network
+      - keycloak_network
     restart: unless-stopped
 
 networks:
-  dokploy-network:
-    external: true
+  keycloak_network:
+    driver: bridge

@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: keycloak-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - keycloak_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak-server
+    command: ["start"]                        # ← start not start-dev for UAT
+    environment:
+      # Database
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Admin credentials
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+      # Hostname — set to your Dokploy domain
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      KC_HOSTNAME_STRICT: false
+      KC_HTTP_ENABLED: true                   # ← Dokploy reverse proxy handles HTTPS
+
+      # Proxy settings — required behind Dokploy/Traefik
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME_STRICT_HTTPS: false
+
+      # Performance
+      KC_CACHE: local                         # ← single node, no infinispan needed
+      KC_LOG_LEVEL: ${KC_LOG_LEVEL}
+    ports:
+      - "${KC_PORT}:8080"
+    volumes:
+      - ./keywind/keywind.jar:/opt/keycloak/providers/keywind.jar
+    depends_on:
+      postgres:
+        condition: service_healthy            # ← wait for postgres to be ready
+    networks:
+      - keycloak_network
+    restart: unless-stopped
+
+networks:
+  keycloak_network:
+    driver: bridge

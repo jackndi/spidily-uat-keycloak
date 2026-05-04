@@ -19,6 +19,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    ports:
+      - "${KC_PORT}:8080"
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -30,10 +32,10 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_PROXY_HEADERS: "xforwarded"
-    command: start-dev
+    command: start
     restart: always
     volumes:
-      - ./keywind:/opt/keycloak/providers   # Mounts all jars from local ./keywind into Keycloak's providers directory
+      - ./keywind:/opt/keycloak/providers
 
 volumes:
   postgres_data:

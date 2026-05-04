@@ -1,61 +1,39 @@
 services:
   postgres:
-    image: postgres:16
-    container_name: keycloak-postgres
+    image: postgres:16.2
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-keycloak}
-      POSTGRES_USER: ${POSTGRES_USER:-keycloak}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?err}
-    networks:
-      - keycloak_network
-    restart: unless-stopped
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-keycloak} -d ${POSTGRES_DB:-keycloak}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
-    volumes:
-      - postgres_data:/var/lib/postgresql/data   # persist database
+    restart: always
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
-    container_name: keycloak-server
-    command: ["start"]                           # production mode
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-keycloak}
-      KC_DB_USERNAME: ${POSTGRES_USER:-keycloak}
-      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?err}
-
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?err}
-
-      KC_HOSTNAME: ${KC_HOSTNAME:?err}
-      KC_HOSTNAME_STRICT: "false"
-      KC_HTTP_ENABLED: "true"
-      KC_PROXY_HEADERS: xforwarded
-      KC_HOSTNAME_STRICT_HTTPS: "false"
-      KC_CACHE: local
-      KC_LOG_LEVEL: ${KC_LOG_LEVEL:-INFO}
-    ports:
-      - "${KC_PORT:-8080}:8080"
-    volumes:
-      - ./keywind/keywind.jar:/opt/keycloak/providers/keywind.jar   # optional theme
+    image: quay.io/keycloak/keycloak:26.3.5
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - keycloak_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_PROXY_HEADERS: "xforwarded"
+    command: start-dev
+    restart: always
+    volumes:
+      - ./keywind:/opt/keycloak/providers   # Mounts all jars from local ./keywind into Keycloak's providers directory
 
 volumes:
   postgres_data:
-
-networks:
-  keycloak_network:
-    driver: bridge

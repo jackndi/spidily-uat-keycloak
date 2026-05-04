@@ -32,7 +32,7 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_PROXY_HEADERS: "xforwarded"
-    command: start
+    entrypoint: ["/bin/sh", "-c", "/opt/keycloak/bin/kc.sh build && /opt/keycloak/bin/kc.sh start"]
     restart: always
     volumes:
       - ./keywind:/opt/keycloak/providers

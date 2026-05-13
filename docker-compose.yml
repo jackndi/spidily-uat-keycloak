@@ -29,22 +29,19 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HOSTNAME: ${KC_HOSTNAME}
-      KC_HOSTNAME_STRICT: "false"          # ✅ added - allows health checks & HTTP
+      KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
-      KC_HTTP_PORT: "8080"                 # ✅ added - explicit internal port
+      KC_HTTP_PORT: "8080"
       KC_HEALTH_ENABLED: "true"
-      KC_PROXY_HEADERS: xforwarded        # ✅ removed unnecessary quotes
-    command: ["start", "--optimized"]      # ✅ use command, not entrypoint
+      KC_PROXY_HEADERS: xforwarded
+    command: >
+      bash -c "
+        /opt/keycloak/bin/kc.sh build &&
+        /opt/keycloak/bin/kc.sh start --optimized
+      "
     restart: always
     volumes:
       - ./keywind:/opt/keycloak/providers
-
-  keycloak-build:                          # ✅ one-time build service
-    image: quay.io/keycloak/keycloak:26.3.5
-    volumes:
-      - ./keywind:/opt/keycloak/providers
-    command: ["build"]
-    profiles: ["build"]                    # only runs when explicitly called
 
 volumes:
   postgres_data:
